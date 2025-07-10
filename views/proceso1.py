@@ -186,7 +186,7 @@ def crear_hoja_mes_seleccionado(libro, nombre_hoja, df, mes):
     hoja.add_image(img_barras_belisario_utmdl, 'E5')
 
     # Generar gráfica de pastel para BELISARIO y UTMDL
-    grafico_belisario_utmdl_path = graficas_pastel_belisario_utmdl(df, nombre_hoja)
+    grafico_belisario_utmdl_path = graficapastel_ano(df, nombre_hoja)
     img_belisario_utmdl = Image(grafico_belisario_utmdl_path)
     hoja.add_image(img_belisario_utmdl, 'E35')  # Colocar la imagen más abajo en la hoja
 
