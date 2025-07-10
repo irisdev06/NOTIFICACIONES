@@ -21,10 +21,18 @@ meses_en_espanol = {
 def graficas_barras(df, colores, nombre_hoja):
     conteo = df.groupby(['MES', 'NOTIFICADOR']).size().unstack(fill_value=0)
     conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())
+    
+    # Debugging: Verifica que el conteo se ha creado correctamente
+    print(conteo.head())  # Muestra las primeras filas del conteo
+    
     num_meses = len(conteo)
     num_notificadores = len(conteo.columns)
     fig_width = max(12, num_meses * 1.2)
     fig_height = max(8, num_notificadores * 1.0)
+    
+    # Debugging: Verifica las dimensiones de la figura
+    print(f"Figura de tamaño: {fig_width}x{fig_height}")
+    
     ax = conteo.plot(kind='bar', figsize=(fig_width, fig_height), color=colores)
     ax.set_xlabel('Mes')
     ax.set_ylabel('Número de Datos')
@@ -106,20 +114,37 @@ def graficas_pastel(df, nombre_hoja):
     plt.savefig(grafico_path, transparent=True, bbox_inches="tight")
     return grafico_path
 
-def graficas_pastel_belisario_utmdl(df, nombre_hoja):
-    # Agrupar por NOTIFICADOR (BELISARIO y UTMDL)
-    conteo = df[df['NOTIFICADOR'].isin(['BELISARIO', 'UTMDL'])].groupby('NOTIFICADOR').size()
+def graficas_barras_belisario_utmdl(df, nombre_hoja, mes):
+    # Filtrar solo los datos de BELISARIO y UTMDL para el mes seleccionado
+    df_filtrado = df[(df['NOTIFICADOR'].isin(['BELISARIO', 'UTMDL'])) & (df['MES'] == mes)]
     
-    # Crear una gráfica de pastel para BELISARIO y UTMDL
-    fig, ax = plt.subplots(figsize=(8, 8))
-    ax.pie(conteo, labels=conteo.index, autopct='%1.1f%%', startangle=90, colors=colores)
-    ax.legend(title='Notificadores', loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=10)
+    # Debugging: Verifica que los datos filtrados sean correctos
+    print(f"Datos filtrados: {df_filtrado.head()}")
+    
+    conteo = df_filtrado.groupby(['MES', 'NOTIFICADOR']).size().unstack(fill_value=0)
+    conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())
+    
+    # Debugging: Verifica el conteo después de agrupar
+    print(conteo.head())  # Muestra las primeras filas del conteo
+    
+    # Crear la gráfica de barras
+    fig, ax = plt.subplots(figsize=(12, 8))
+    conteo.plot(kind='bar', ax=ax, color=colores)
+    ax.set_xlabel('Mes')
+    ax.set_ylabel('Número de Datos')
+    ax.legend(title='Notificadores', bbox_to_anchor=(1.2, 1), loc='upper left', fontsize=10)
 
-    grafico_path = f"{nombre_hoja}_grafico_pastel_belisario_utmdl.png"
+    for p in ax.patches:
+        ax.annotate(f'{p.get_height()}', 
+                    (p.get_x() + p.get_width() / 2., p.get_height()), 
+                    xytext=(0, 5),
+                    textcoords='offset points',
+                    ha='center', va='bottom', fontsize=10, color='black')
+
+    grafico_path = f"{nombre_hoja}_grafico_barras_belisario_utmdl_{mes}.png"
     plt.tight_layout()
     plt.savefig(grafico_path, transparent=True, bbox_inches="tight")
     return grafico_path
-
 def graficapastel_ano(df, nombre_hoja):
     # Filtrar solo los datos de BELISARIO397 y GESTAR INNOVACION
     df_comparativa = df[df['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
@@ -275,6 +300,8 @@ def descargar_archivo(output, nombre="archivo_procesado.xlsx"):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+
+
 def subir_archivo():
     archivo = st.file_uploader("Sube un archivo (.xlsx o .csv)", type=["xlsx", "csv"])
 
@@ -310,7 +337,6 @@ def subir_archivo():
             return None, None
 
     return None, None
-
 
 # ------------------------------------------------------------------------------- FLUJO ---------------------------------------------------------------------------------
 def procesar_archivos():
@@ -350,4 +376,3 @@ def procesar_archivos():
         st.success("✅ Archivo generado con éxito.")
     elif archivo and tipo == "csv":
         st.warning("Actualmente el procesamiento está disponible solo para archivos .xlsx con hojas DTO y PCL.")
-
