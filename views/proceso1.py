@@ -170,47 +170,46 @@ def crear_hoja_mes_seleccionado(libro, nombre_hoja, df, mes):
 
 
 # ------------------------------------------------------------------------------- HOJA: TABLA MES -------------------------------------------------------------
-def graficas_barras_tabla_mes(df, nombre_hoja, mes):
+import matplotlib.pyplot as plt
+
+def graficas_barras_tabla_mes(df, nombre_hoja):
     # Asegurarse de que exista la columna MES
     if 'MES' not in df.columns:
         df['MES'] = df['FECHA_VISADO'].dt.month
 
-    # Filtrar por mes
-    df_mes = df[df['MES'] == mes]
+    # Agrupar por MES y contar casos
+    conteo = df.groupby('MES').size().reset_index(name='TOTAL_CASOS')
+    conteo['MES'] = conteo['MES'].map(lambda m: meses_en_espanol[m].capitalize())
 
-    # Agrupar por NOTIFICADOR y ESTADO_INFORME (o lo que necesites)
-    conteo = (
-        df_mes
-        .groupby('NOTIFICADOR')
-        .size()
-        .sort_values(ascending=False)
-        .reset_index(name='CUENTA')
-    )
+    print("Conteo total por mes:\n", conteo)
 
-    # Parámetros de la figura
-    fig_width, fig_height = 10, 6
-    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+    # Crear gráfica
+    fig, ax = plt.subplots(figsize=(10, 6))
+    colores = plt.cm.get_cmap('Set2', len(conteo))(range(len(conteo)))
 
-    # Colores automáticos seguros con colormap
-    n = len(conteo)
-    cmap = plt.cm.get_cmap('Set3', n)
-    colores = [cmap(i) for i in range(n)]
+    barras = ax.bar(conteo['MES'], conteo['TOTAL_CASOS'], color=colores)
 
-    # Graficar barras
-    ax.bar(conteo['NOTIFICADOR'], conteo['CUENTA'], color=colores)
+    # Etiquetas en cada barra
+    for bar in barras:
+        altura = bar.get_height()
+        ax.annotate(f'{int(altura)}',
+                    (bar.get_x() + bar.get_width()/2, altura),
+                    xytext=(0, 5),
+                    textcoords="offset points",
+                    ha='center', va='bottom', fontsize=10)
 
-    ax.set_title(f'Total por Notificador – {meses_en_espanol[mes].capitalize()}', fontsize=14)
-    ax.set_xlabel('Notificador')
-    ax.set_ylabel('Cantidad')
-    ax.set_xticklabels(conteo['NOTIFICADOR'], rotation=45, ha='right')
+    ax.set_title("Total de casos por mes", fontsize=14)
+    ax.set_xlabel("Mes")
+    ax.set_ylabel("Cantidad")
+    ax.set_xticklabels(conteo['MES'], rotation=45, ha='right')
 
-    # Guardar imagen
-    path = f"{nombre_hoja}_barras_notificador_{mes}.png"
+    path = f"{nombre_hoja}_grafico_barras_mensual.png"
     plt.tight_layout()
     plt.savefig(path, transparent=True, bbox_inches="tight")
     plt.close(fig)
 
     return path
+
 
 def graficas_pastel_tabla_mes(df, nombre_hoja):
     conteo = df.groupby('MES').size()
@@ -302,7 +301,7 @@ def generar_tablas_dto_y_pcl(libro, df_dto, df_pcl):
         # (El resto igual, solo cambia `df` por `df_mes` donde aplique)
 
         # Gráficos
-        grafico_barras_path = graficas_barras_tabla_mes(df, hoja_nombre_mes, mes)
+        grafico_barras_path = graficas_barras_tabla_mes(df, hoja_nombre_mes)
         img_barras = Image(grafico_barras_path)
         hoja.add_image(img_barras, 'E5')
 
