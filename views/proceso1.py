@@ -3,8 +3,8 @@ import pandas as pd
 from io import BytesIO
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.styles import Border, Side, PatternFill
 import calendar
+from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
 import matplotlib.pyplot as plt
 from openpyxl.drawing.image import Image
 import csv
@@ -55,8 +55,8 @@ def graficapastel_comparativa_ano(df, nombre_hoja):
     conteo = df_comparativa.groupby('NOTIFICADOR').size()
     
     fig, ax = plt.subplots(figsize=(8, 8))
-    ax.pie(conteo, labels=conteo.index, autopct='%1.1f%%', startangle=90, colors=colores)
-    ax.legend(title='Notificadores', loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=10)
+    ax.pie(conteo, labels=None, autopct='%1.1f%%', startangle=90, colors=colores)
+    ax.legend(labels=conteo.index, title='Notificadores', loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=10)
 
     # Guardar el gráfico en un archivo
     grafico_path = f"{nombre_hoja}_grafico_pastel_ano.png"
@@ -81,7 +81,6 @@ def graficas_barras_hojames(df, nombre_hoja, mes):
     conteo.plot(kind='bar', ax=ax, color=colores[:len(conteo.columns)])
     ax.set_xlabel('Notificador')
     ax.set_ylabel('Cantidad')
-    ax.set_title(f'Conteo de ESTADO_INFORME por NOTIFICADOR - {meses_en_espanol[mes].capitalize()}')
     ax.legend(title='Estado Informe', bbox_to_anchor=(1.2, 1), loc='upper left', fontsize=10)
 
     for p in ax.patches:
@@ -99,14 +98,11 @@ def graficas_barras_hojames(df, nombre_hoja, mes):
     return grafico_path
 
 def graficas_pastel_hoja_mes(df, nombre_hoja, mes):
-    # Asegurar columna MES
     if 'MES' not in df.columns:
         df['MES'] = df['FECHA_VISADO'].dt.month
 
-    # Filtrar por el mes
     df_mes = df[df['MES'] == mes]
 
-    # Agrupar por NOTIFICADOR y ESTADO_INFORME y contar
     conteo = (
         df_mes
         .groupby(['NOTIFICADOR', 'ESTADO_INFORME'])
@@ -114,23 +110,30 @@ def graficas_pastel_hoja_mes(df, nombre_hoja, mes):
         .reset_index(name='CUENTA')
     )
 
-    # Crear etiquetas combinadas tipo "BELISARIO – ENTREGADO"
     conteo['ETIQUETA'] = conteo['NOTIFICADOR'] + " – " + conteo['ESTADO_INFORME']
 
     fig, ax = plt.subplots(figsize=(10, 8))
     cmap = plt.cm.get_cmap('tab20', len(conteo))
-    ax.pie(
+
+    wedges, texts, autotexts = ax.pie(
         conteo['CUENTA'],
-        labels=conteo['ETIQUETA'],
+        labels=None,  # 👈 Sin etiquetas en el gráfico
         autopct='%1.1f%%',
         startangle=140,
         colors=[cmap(i) for i in range(len(conteo))]
     )
-    ax.set_title(
-        f'Distribución NOTIFICADOR vs ESTADO_INFORME – {meses_en_espanol[mes].capitalize()}',
-        fontsize=14
-    )
+
     ax.axis('equal')
+
+    # 💡 Agregar leyenda al lado derecho
+    ax.legend(
+        wedges,
+        conteo['ETIQUETA'],
+        title="Notificador – Estado",
+        loc='center left',
+        bbox_to_anchor=(1, 0.5),
+        fontsize=9
+    )
 
     path = f"{nombre_hoja}_pastel_notificador_estado_{mes}.png"
     plt.tight_layout()
@@ -170,38 +173,35 @@ def crear_hoja_mes_seleccionado(libro, nombre_hoja, df, mes):
 
 
 # ------------------------------------------------------------------------------- HOJA: TABLA MES -------------------------------------------------------------
-import matplotlib.pyplot as plt
+def _mes_a_nombre(m):
+    if isinstance(m, str):
+        return m.capitalize()
+    return meses_en_espanol[int(m)].capitalize()
 
 def graficas_barras_tabla_mes(df, nombre_hoja):
-    # Asegurarse de que exista la columna MES
     if 'MES' not in df.columns:
         df['MES'] = df['FECHA_VISADO'].dt.month
+    df['MES_NOMBRE'] = df['MES'].apply(_mes_a_nombre)
 
-    # Agrupar por MES y contar casos
-    conteo = df.groupby('MES').size().reset_index(name='TOTAL_CASOS')
-    conteo['MES'] = conteo['MES'].map(lambda m: meses_en_espanol[m].capitalize())
+    # Agrupar por MES_NOMBRE y NOTIFICADOR → contar casos
+    conteo = df.groupby(['MES_NOMBRE', 'NOTIFICADOR']).size().reset_index(name='TOTAL')
 
-    print("Conteo total por mes:\n", conteo)
+    # Pivot para poner NOTIFICADOR como columnas y MES_NOMBRE como índice
+    tabla = conteo.pivot(index='MES_NOMBRE', columns='NOTIFICADOR', values='TOTAL').fillna(0)
 
-    # Crear gráfica
-    fig, ax = plt.subplots(figsize=(10, 6))
-    colores = plt.cm.get_cmap('Set2', len(conteo))(range(len(conteo)))
+    # Ordenar los meses Enero → Diciembre
+    orden_meses = [_mes_a_nombre(i) for i in range(1, 13)]
+    tabla = tabla.reindex(orden_meses, fill_value=0)
 
-    barras = ax.bar(conteo['MES'], conteo['TOTAL_CASOS'], color=colores)
+    # Plot: Barras agrupadas (NO apiladas)
+    fig, ax = plt.subplots(figsize=(12, 6))
+    tabla.plot(kind='bar', ax=ax, color=colores)  
 
-    # Etiquetas en cada barra
-    for bar in barras:
-        altura = bar.get_height()
-        ax.annotate(f'{int(altura)}',
-                    (bar.get_x() + bar.get_width()/2, altura),
-                    xytext=(0, 5),
-                    textcoords="offset points",
-                    ha='center', va='bottom', fontsize=10)
 
-    ax.set_title("Total de casos por mes", fontsize=14)
     ax.set_xlabel("Mes")
     ax.set_ylabel("Cantidad")
-    ax.set_xticklabels(conteo['MES'], rotation=45, ha='right')
+    plt.xticks(rotation=45, ha='right')
+    ax.legend(title='Notificador', bbox_to_anchor=(1.05, 1), loc='upper left')
 
     path = f"{nombre_hoja}_grafico_barras_mensual.png"
     plt.tight_layout()
@@ -210,33 +210,29 @@ def graficas_barras_tabla_mes(df, nombre_hoja):
 
     return path
 
-
 def graficas_pastel_tabla_mes(df, nombre_hoja):
-    conteo = df.groupby('MES').size()
-    conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())  
+    if 'MES' not in df.columns:
+        df['MES'] = df['FECHA_VISADO'].dt.month
+
+    # Convertir al vuelo sin tocar df
+    conteo = (
+        df.groupby('MES').size()
+          .rename(index=_mes_a_nombre)
+    )
 
     fig, ax = plt.subplots(figsize=(8, 8))
     cmap = plt.cm.get_cmap('Pastel1', len(conteo))
-    colores = [cmap(i) for i in range(len(conteo))]
+    ax.pie(conteo, labels=None, autopct='%1.1f%%',
+           startangle=90, colors=[cmap(i) for i in range(len(conteo))])
+    ax.legend(labels=conteo.index, title='Meses', loc='center left',
+              bbox_to_anchor=(1.05, 0.5), fontsize=10)
 
-    ax.pie(
-        conteo,
-        labels=conteo.index,
-        autopct='%1.1f%%',
-        startangle=90,
-        colors=colores
-    )
-    ax.legend(title='Meses', loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=10)
-
-    grafico_path = f"{nombre_hoja}_grafico_pastel.png"
-    plt.tight_layout()
-    plt.savefig(grafico_path, transparent=True, bbox_inches="tight")
-    plt.close(fig)
-
-    return grafico_path
+    path = f"{nombre_hoja}_grafico_pastel.png"
+    plt.tight_layout(); plt.savefig(path, transparent=True,
+                                    bbox_inches="tight"); plt.close(fig)
+    return path
 
 # ------------------------------------------------------------------------------- HOJAS -------------------------------------------------------------
-
 # Hoja "COMPARATIVA AÑO"
 def crear_comparativa_ano_dto(libro, df_dto):
     # Crear la hoja "COMPARATIVA AÑO DTO"
@@ -277,43 +273,67 @@ def crear_comparativa_ano_pcl(libro, df_pcl):
 
 # ------------------------------------------------------------------------------- GENERAR TABLAS PARA DTO Y PCL: TABLA MES -------------------------------------------------------------
 def generar_tablas_dto_y_pcl(libro, df_dto, df_pcl):
-    def crear_hoja(nombre_hoja, df, mes):
+    def crear_hoja(nombre_hoja, df):
         df['MES'] = df['FECHA_VISADO'].dt.month
-        df_mes = df[df['MES'] == mes]
 
-        conteo = df_mes.groupby('MES').size().reset_index(name='TOTAL')
-        conteo['MES'] = conteo['MES'].apply(lambda m: meses_en_espanol[m].capitalize())
+        conteo = df.groupby('MES').size().reset_index(name='TOTAL')
+        conteo['MES'] = conteo['MES'].map(lambda m: meses_en_espanol[m].capitalize())
+
         total_general = conteo['TOTAL'].sum()
-        conteo['PORCENTAJE'] = (conteo['TOTAL'] / total_general * 100).round(2).astype(str) + '%'
+        conteo['PORCENTAJE'] = (
+            (conteo['TOTAL'] / total_general * 100)
+            .round(2).astype(str) + '%'
+        )
 
         fila_total = pd.DataFrame({
             'MES': ['Total general'],
             'TOTAL': [total_general],
             'PORCENTAJE': ['100.0%']
         })
+
         tabla_final = pd.concat([conteo, fila_total], ignore_index=True)
 
-        hoja_nombre_mes = f"{nombre_hoja} {meses_en_espanol[mes].capitalize()}"
-        if hoja_nombre_mes in libro.sheetnames:
-            del libro[hoja_nombre_mes]
-        hoja = libro.create_sheet(hoja_nombre_mes)
+        # Crear hoja
+        if nombre_hoja in libro.sheetnames:
+            del libro[nombre_hoja]
+        hoja = libro.create_sheet(nombre_hoja)
 
-        # (El resto igual, solo cambia `df` por `df_mes` donde aplique)
+        # Definir estilos
+        borde_oscuro = Border(
+            left=Side(style='thin', color='000000'),
+            right=Side(style='thin', color='000000'),
+            top=Side(style='thin', color='000000'),
+            bottom=Side(style='thin', color='000000')
+        )
+
+        relleno_encabezado = PatternFill(start_color='D9D9D9', end_color='D9D9D9', fill_type='solid')
+        alineacion_centrada = Alignment(horizontal='center', vertical='center')
+        fuente_negrita = Font(bold=True)
+
+        # Escribir encabezados con estilo
+        for c_idx, col_name in enumerate(tabla_final.columns, 1):
+            celda = hoja.cell(row=1, column=c_idx, value=col_name)
+            celda.fill = relleno_encabezado
+            celda.border = borde_oscuro
+            celda.alignment = alineacion_centrada
+            celda.font = fuente_negrita
+
+        # Escribir datos con bordes
+        for r_idx, row in tabla_final.iterrows():
+            for c_idx, value in enumerate(row, 1):
+                celda = hoja.cell(row=r_idx+2, column=c_idx, value=value)
+                celda.border = borde_oscuro
+                celda.alignment = alineacion_centrada
 
         # Gráficos
-        grafico_barras_path = graficas_barras_tabla_mes(df, hoja_nombre_mes)
-        img_barras = Image(grafico_barras_path)
-        hoja.add_image(img_barras, 'E5')
+        grafico_barras_path = graficas_barras_tabla_mes(df, nombre_hoja)
+        hoja.add_image(Image(grafico_barras_path), 'E5')
 
-        grafico_pastel_path = graficas_pastel_tabla_mes(df_mes, hoja_nombre_mes)
-        img_pastel = Image(grafico_pastel_path)
-        hoja.add_image(img_pastel, 'E20')
+        grafico_pastel_path = graficas_pastel_tabla_mes(df, nombre_hoja)
+        hoja.add_image(Image(grafico_pastel_path), 'E20')
 
-    # Ejecutar por cada mes presente
-    for mes in sorted(df_dto['FECHA_VISADO'].dt.month.unique()):
-        crear_hoja("TABLA MES DTO", df_dto, mes)
-    for mes in sorted(df_pcl['FECHA_VISADO'].dt.month.unique()):
-        crear_hoja("TABLA MES PCL", df_pcl, mes)
+    crear_hoja("DTO TABLA MES", df_dto)
+    crear_hoja("PCL TABLA MES", df_pcl)
 
 
 # ------------------------------------------------------------------------------- FUNCIONES DE SUBIDA Y DESCARGA -------------------------------------------------------------
