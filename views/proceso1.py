@@ -260,17 +260,17 @@ def graficas_barras_tabla_mes(df, nombre_hoja):
     # Agrupar por MES_NOMBRE y NOTIFICADOR → contar casos
     conteo = df.groupby(['MES_NOMBRE', 'NOTIFICADOR']).size().reset_index(name='TOTAL')
 
-    # Pivot para poner NOTIFICADOR como columnas y MES_NOMBRE como índice
+    # Pivot sin inventar meses
     tabla = conteo.pivot(index='MES_NOMBRE', columns='NOTIFICADOR', values='TOTAL').fillna(0)
 
-    # Ordenar los meses Enero → Diciembre
+    # Ordenar meses sin crear filas nuevas
     orden_meses = [_mes_a_nombre(i) for i in range(1, 13)]
-    tabla = tabla.reindex(orden_meses, fill_value=0)
+    tabla.index = pd.CategoricalIndex(tabla.index, categories=orden_meses, ordered=True)
+    tabla = tabla.sort_index()
 
-    # Plot: Barras agrupadas (NO apiladas)
+    # 📊 Plot
     fig, ax = plt.subplots(figsize=(12, 6))
-    tabla.plot(kind='bar', ax=ax, color=colores)  
-
+    tabla.plot(kind='bar', ax=ax, color=colores)
 
     ax.set_xlabel("Mes")
     ax.set_ylabel("Cantidad")
@@ -281,8 +281,8 @@ def graficas_barras_tabla_mes(df, nombre_hoja):
     plt.tight_layout()
     plt.savefig(path, transparent=True, bbox_inches="tight")
     plt.close(fig)
-
     return path
+
 
 def graficas_pastel_tabla_mes(df, nombre_hoja):
     if 'MES' not in df.columns:
