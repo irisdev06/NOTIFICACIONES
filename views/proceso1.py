@@ -17,46 +17,17 @@ meses_en_espanol = {
     7: 'Julio', 8: 'Agosto', 9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
 }
 
-# ------------------------------------------------------------------------------- GRÁFICOS DE BARRAS -------------------------------------------------------------
-def graficas_barras(df, colores, nombre_hoja):
-    conteo = df.groupby(['MES', 'NOTIFICADOR']).size().unstack(fill_value=0)
-    conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())
-    
-    # Debugging: Verifica que el conteo se ha creado correctamente
-    print(conteo.head())  # Muestra las primeras filas del conteo
-    
-    num_meses = len(conteo)
-    num_notificadores = len(conteo.columns)
-    fig_width = max(12, num_meses * 1.2)
-    fig_height = max(8, num_notificadores * 1.0)
-    
-    # Debugging: Verifica las dimensiones de la figura
-    print(f"Figura de tamaño: {fig_width}x{fig_height}")
-    
-    ax = conteo.plot(kind='bar', figsize=(fig_width, fig_height), color=colores)
-    ax.set_xlabel('Mes')
-    ax.set_ylabel('Número de Datos')
-    ax.legend(title='NOTIFICADOR', bbox_to_anchor=(1.2, 1), loc='upper left', fontsize=10)
-
-    for p in ax.patches:
-        ax.annotate(f'{p.get_height()}', 
-                    (p.get_x() + p.get_width() / 2., p.get_height()), 
-                    xytext=(0, 5),
-                    textcoords='offset points',
-                    ha='center', va='bottom', fontsize=10, color='black')
-
-    grafico_path = f"{nombre_hoja}_grafico_barras.png"
-    ax.get_figure().savefig(grafico_path, transparent=True, bbox_inches="tight")
-    return grafico_path
-
-
-def graficas_barras_comparativa(df, nombre_hoja):
+# -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------- GRÁFICOS  -------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# --------------------------------------------------------- COMPARATIVAS POR AÑO - HOJA: COMPARATIVA AÑO DTO/PCL ---------------------------------------------------
+def graficas_barras_tabla_mes_comparativa(df, nombre_hoja):
     # Filtrar solo los datos de BELISARIO397 y GESTAR INNOVACION
     df_comparativa = df[df['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
     
     conteo = df_comparativa.groupby(['MES', 'NOTIFICADOR']).size().unstack(fill_value=0)
     conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())
-    
+
     # Crear la gráfica de barras
     fig, ax = plt.subplots(figsize=(12, 8))
     conteo.plot(kind='bar', ax=ax, color=colores)
@@ -76,45 +47,25 @@ def graficas_barras_comparativa(df, nombre_hoja):
     plt.savefig(grafico_path, transparent=True, bbox_inches="tight")
     return grafico_path
 
-def graficas_barras_belisario_utmdl(df, nombre_hoja, mes):
-    # Filtrar solo los datos de BELISARIO y UTMDL para el mes seleccionado
-    df_filtrado = df[(df['NOTIFICADOR'].isin(['BELISARIO', 'UTMDL'])) & (df['MES'] == mes)]
+def graficapastel_comparativa_ano(df, nombre_hoja):
+    # Filtrar solo los datos de BELISARIO397 y GESTAR INNOVACION
+    df_comparativa = df[df['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
     
-    conteo = df_filtrado.groupby(['MES', 'NOTIFICADOR']).size().unstack(fill_value=0)
-    conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())
+    # Crear gráfico de pastel comparativo por notificadores
+    conteo = df_comparativa.groupby('NOTIFICADOR').size()
     
-    # Crear la gráfica de barras
-    fig, ax = plt.subplots(figsize=(12, 8))
-    conteo.plot(kind='bar', ax=ax, color=colores)
-    ax.set_xlabel('Mes')
-    ax.set_ylabel('Número de Datos')
-    ax.legend(title='Notificadores', bbox_to_anchor=(1.2, 1), loc='upper left', fontsize=10)
-
-    for p in ax.patches:
-        ax.annotate(f'{p.get_height()}', 
-                    (p.get_x() + p.get_width() / 2., p.get_height()), 
-                    xytext=(0, 5),
-                    textcoords='offset points',
-                    ha='center', va='bottom', fontsize=10, color='black')
-
-    grafico_path = f"{nombre_hoja}_grafico_barras_belisario_utmdl_{mes}.png"
-    plt.tight_layout()
-    plt.savefig(grafico_path, transparent=True, bbox_inches="tight")
-    return grafico_path
-# ------------------------------------------------------------------------------- GRÁFICOS DE PASTEL -------------------------------------------------------------
-def graficas_pastel(df, nombre_hoja):
-    conteo = df.groupby('MES').size()
-    conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())  
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.pie(conteo, labels=conteo.index, autopct='%1.1f%%', startangle=90, colors=colores)
-    ax.legend(title='Meses', loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=10)
+    ax.legend(title='Notificadores', loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=10)
 
-    grafico_path = f"{nombre_hoja}_grafico_pastel.png"
+    # Guardar el gráfico en un archivo
+    grafico_path = f"{nombre_hoja}_grafico_pastel_ano.png"
     plt.tight_layout()
     plt.savefig(grafico_path, transparent=True, bbox_inches="tight")
     return grafico_path
 
-def graficas_barras_belisario_utmdl(df, nombre_hoja, mes):
+# --------------------------------------------------------------- HOJA MES PCL/DTO_MES ----------------------------------------------------------------------------- #
+def graficas_barras_tabla_mes_belisario_utmdl(df, nombre_hoja, mes):
     # Filtrar solo los datos de BELISARIO y UTMDL para el mes seleccionado
     df_filtrado = df[(df['NOTIFICADOR'].isin(['BELISARIO', 'UTMDL'])) & (df['MES'] == mes)]
     
@@ -145,22 +96,51 @@ def graficas_barras_belisario_utmdl(df, nombre_hoja, mes):
     plt.tight_layout()
     plt.savefig(grafico_path, transparent=True, bbox_inches="tight")
     return grafico_path
-def graficapastel_ano(df, nombre_hoja):
-    # Filtrar solo los datos de BELISARIO397 y GESTAR INNOVACION
-    df_comparativa = df[df['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
+
+# ------------------------------------------------------------------------------- HOJA: TABLA MES -------------------------------------------------------------
+def graficas_barras_tabla_mes(df, colores, nombre_hoja):
+    conteo = df.groupby(['MES', 'NOTIFICADOR']).size().unstack(fill_value=0)
+    conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())
     
-    # Crear gráfico de pastel comparativo por notificadores
-    conteo = df_comparativa.groupby('NOTIFICADOR').size()
+    # Debugging: Verifica que el conteo se ha creado correctamente
+    print(conteo.head())  # Muestra las primeras filas del conteo
     
+    num_meses = len(conteo)
+    num_notificadores = len(conteo.columns)
+    fig_width = max(12, num_meses * 1.2)
+    fig_height = max(8, num_notificadores * 1.0)
+    
+    # Debugging: Verifica las dimensiones de la figura
+    print(f"Figura de tamaño: {fig_width}x{fig_height}")
+    
+    ax = conteo.plot(kind='bar', figsize=(fig_width, fig_height), color=colores)
+    ax.set_xlabel('Mes')
+    ax.set_ylabel('Número de Datos')
+    ax.legend(title='NOTIFICADOR', bbox_to_anchor=(1.2, 1), loc='upper left', fontsize=10)
+
+    for p in ax.patches:
+        ax.annotate(f'{p.get_height()}', 
+                    (p.get_x() + p.get_width() / 2., p.get_height()), 
+                    xytext=(0, 5),
+                    textcoords='offset points',
+                    ha='center', va='bottom', fontsize=10, color='black')
+
+    grafico_path = f"{nombre_hoja}_grafico_barras.png"
+    ax.get_figure().savefig(grafico_path, transparent=True, bbox_inches="tight")
+    return grafico_path
+
+def graficas_pastel_tabla_mes(df, nombre_hoja):
+    conteo = df.groupby('MES').size()
+    conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())  
     fig, ax = plt.subplots(figsize=(8, 8))
     ax.pie(conteo, labels=conteo.index, autopct='%1.1f%%', startangle=90, colors=colores)
-    ax.legend(title='Notificadores', loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=10)
+    ax.legend(title='Meses', loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=10)
 
-    # Guardar el gráfico en un archivo
-    grafico_path = f"{nombre_hoja}_grafico_pastel_ano.png"
+    grafico_path = f"{nombre_hoja}_grafico_pastel.png"
     plt.tight_layout()
     plt.savefig(grafico_path, transparent=True, bbox_inches="tight")
     return grafico_path
+
 # ------------------------------------------------------------------------------- HOJAS -------------------------------------------------------------
 # Hoja por Mes Seleccionado
 def crear_hoja_mes_seleccionado(libro, nombre_hoja, df, mes):
@@ -181,12 +161,12 @@ def crear_hoja_mes_seleccionado(libro, nombre_hoja, df, mes):
             hoja.cell(row=i, column=j, value=value)
 
     # Generar gráficos de barras y pastel por mes
-    grafico_barras_belisario_utmdl_path = graficas_barras_belisario_utmdl(df, nombre_hoja, mes)  # Ahora pasa el mes
+    grafico_barras_belisario_utmdl_path = graficas_barras_tabla_mes_belisario_utmdl(df, nombre_hoja, mes)  # Ahora pasa el mes
     img_barras_belisario_utmdl = Image(grafico_barras_belisario_utmdl_path)
     hoja.add_image(img_barras_belisario_utmdl, 'E5')
 
     # Generar gráfica de pastel para BELISARIO y UTMDL
-    grafico_belisario_utmdl_path = graficapastel_ano(df, nombre_hoja)
+    grafico_belisario_utmdl_path = graficapastel_comparativa_ano(df, nombre_hoja)
     img_belisario_utmdl = Image(grafico_belisario_utmdl_path)
     hoja.add_image(img_belisario_utmdl, 'E35')  # Colocar la imagen más abajo en la hoja
 
@@ -201,12 +181,12 @@ def crear_comparativa_ano_dto(libro, df_dto):
     df_comparativa = df_dto[df_dto['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
 
     # Generar el gráfico de barras comparativo
-    grafico_barras_comparativa_path = graficas_barras_comparativa(df_comparativa, "COMPARATIVA AÑO DTO")
+    grafico_barras_comparativa_path = graficas_barras_tabla_mes_comparativa(df_comparativa, "COMPARATIVA AÑO DTO")
     img_comparativa_barras = Image(grafico_barras_comparativa_path)
     hoja.add_image(img_comparativa_barras, 'E5')
 
     # Generar gráfico de pastel comparativo
-    grafico_pastel_comparativa_path = graficapastel_ano(df_comparativa, "COMPARATIVA AÑO DTO")
+    grafico_pastel_comparativa_path = graficapastel_comparativa_ano(df_comparativa, "COMPARATIVA AÑO DTO")
     img_comparativa_pastel = Image(grafico_pastel_comparativa_path)
     hoja.add_image(img_comparativa_pastel, 'E20')
 # Hoja "COMPARATIVA AÑO PCL"
@@ -219,12 +199,12 @@ def crear_comparativa_ano_pcl(libro, df_pcl):
     df_comparativa = df_pcl[df_pcl['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
 
     # Generar el gráfico de barras comparativo
-    grafico_barras_comparativa_path = graficas_barras_comparativa(df_comparativa, "COMPARATIVA AÑO PCL")
+    grafico_barras_comparativa_path = graficas_barras_tabla_mes_comparativa(df_comparativa, "COMPARATIVA AÑO PCL")
     img_comparativa_barras = Image(grafico_barras_comparativa_path)
     hoja.add_image(img_comparativa_barras, 'E5')
 
     # Generar gráfico de pastel comparativo
-    grafico_pastel_comparativa_path = graficapastel_ano(df_comparativa, "COMPARATIVA AÑO DTO")
+    grafico_pastel_comparativa_path = graficapastel_comparativa_ano(df_comparativa, "COMPARATIVA AÑO DTO")
     img_comparativa_pastel = Image(grafico_pastel_comparativa_path)
     hoja.add_image(img_comparativa_pastel, 'E20')
 
@@ -279,11 +259,11 @@ def generar_tablas_dto_y_pcl(libro, df_dto, df_pcl):
                 hoja[f'C{i}'].fill = fondo_gris
 
         # Generar gráficos
-        grafico_barras_path = graficas_barras(df, colores, nombre_hoja)
+        grafico_barras_path = graficas_barras_tabla_mes(df, colores, nombre_hoja)
         img_barras = Image(grafico_barras_path)
         hoja.add_image(img_barras, 'E5')
 
-        grafico_pastel_path = graficas_pastel(df, nombre_hoja)
+        grafico_pastel_path = graficas_pastel_tabla_mes(df, nombre_hoja)
         img_pastel = Image(grafico_pastel_path)
         hoja.add_image(img_pastel, 'E20')
 
