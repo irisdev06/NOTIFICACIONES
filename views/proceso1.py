@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from openpyxl.drawing.image import Image
 import csv
 
+
 # Colores 
 colores = ['#FFB897', '#B8E6A7', '#809bce', "#64a09d", '#CBE6FF', '#E6E6FA']
 # Meses 
@@ -65,23 +66,33 @@ def graficapastel_comparativa_ano(df, nombre_hoja):
 # ---------------------------------------------------------------------- TABLAS  --------------------------------------
 
 def tabla_comparativa_por_mes(df, hoja):
-    # Filtrar datos
+    # Filtrar solo los datos de interés
     df_comparativa = df[df['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
 
     # Agrupar y pivotear
     conteo = df_comparativa.groupby(['MES', 'NOTIFICADOR']).size().unstack(fill_value=0)
     conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())
+    conteo.index.name = "MES"
 
-    # Insertar tabla desde A1
-    for r_idx, fila in enumerate(dataframe_to_rows(conteo, index=True, header=True), start=1):
+    # Preparar estilos
+    borde_fino = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+
+    for r_idx, fila in enumerate(dataframe_to_rows(conteo.reset_index(), index=False, header=True), start=1):
         for c_idx, valor in enumerate(fila, start=1):
             celda = hoja.cell(row=r_idx, column=c_idx, value=valor)
-            celda.alignment = Alignment(horizontal="center")
 
-            # Negrita en encabezado
+            # Estilo general
+            celda.alignment = Alignment(horizontal="center")
+            celda.border = borde_fino
+
+            # Negrita para headers
             if r_idx == 1:
                 celda.font = Font(bold=True)
-
 
 # ---------------------------------------------------------------------- Hojas  --------------------------------------
 
