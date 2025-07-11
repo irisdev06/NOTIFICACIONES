@@ -213,8 +213,6 @@ def graficas_pastel_hoja_mes(df, nombre_hoja, mes):
     plt.close(fig)
 
     return path
-
-
 def crear_hoja_mes_seleccionado(libro, nombre_hoja, df, mes):
     # Asegurarse de que la columna 'MES' esté presente en el DataFrame antes de filtrar
     df['MES'] = df['FECHA_VISADO'].dt.month
@@ -242,6 +240,54 @@ def crear_hoja_mes_seleccionado(libro, nombre_hoja, df, mes):
 
     img_pastel = Image(grafico_pastel_path)
     hoja.add_image(img_pastel, 'E35')
+
+# -------------------------------------------------------------------------------- TABLAS  -----------------------------------------------------------------------------------
+def tabla_hojames(libro, df_mes, tipo, mes, pos_barras='H5', pos_pastel='H35'):
+    nombre_hoja = f"{tipo}_{mes}_tabla"
+    nombre_hoja = f"{tipo}_{mes}_tabla"
+    if 'MES' not in df_mes.columns:
+        df_mes['MES'] = df_mes['FECHA_VISADO'].dt.month
+    if nombre_hoja in libro.sheetnames:
+        del libro[nombre_hoja]
+    hoja = libro.create_sheet(nombre_hoja)
+
+    # 👉 Vuelca el DataFrame (cabeceras incluidas)
+    for r, fila in enumerate(dataframe_to_rows(df_mes, index=False, header=True), start=1):
+        for c, valor in enumerate(fila, start=1):
+            hoja.cell(row=r, column=c, value=valor)
+
+    # 👉 Bar chart
+    barra_path = graficas_barras_hojames(df_mes, nombre_hoja, mes)
+    hoja.add_image(Image(barra_path), pos_barras)
+
+    # 👉 Pie chart
+    pastel_path = graficas_pastel_hoja_mes(df_mes, nombre_hoja, mes)
+    hoja.add_image(Image(pastel_path), pos_pastel)
+
+    return nombre_hoja
+
+def crear_hojas_dto_pcl_tabla(libro, df_total, mes):
+
+    # Asegura columna MES 👇🏽
+    if 'MES' not in df_total.columns:
+        df_total['MES'] = df_total['FECHA_VISADO'].dt.month
+
+    # Split según tu columna de procedencia ✂️
+    if 'HOJA_ORIGEN' not in df_total.columns:
+        raise ValueError("Falta la columna HOJA_ORIGEN (debe valer 'DTO' o 'PCL').")
+
+    filtros = {
+        'PCL': df_total[(df_total['HOJA_ORIGEN'] == 'PCL') & (df_total['MES'] == mes)],
+        'DTO': df_total[(df_total['HOJA_ORIGEN'] == 'DTO') & (df_total['MES'] == mes)]
+    }
+
+    for tipo, df_mes in filtros.items():
+        if df_mes.empty:
+            print(f"⚠️  Nada para {tipo} en el mes {mes}, se salta la hoja.")
+            continue
+        _tabla_y_charts_en_hoja(libro, df_mes, tipo, mes)
+
+    print("✅ Hojas creadas / actualizadas al 100 % 🚀")
 
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -442,6 +488,10 @@ def procesar_archivos():
 
         # Convertir el mes seleccionado a número usando el diccionario
         mes_num = list(meses_en_espanol.values()).index(mes_seleccionado) + 1  # Obtiene el índice del mes (1-12)
+        # 👇🏽 AÑADE ESTO AQUÍ
+        df_dto_mes = df_dto[df_dto['FECHA_VISADO'].dt.month == mes_num]
+        df_pcl_mes = df_pcl[df_pcl['FECHA_VISADO'].dt.month == mes_num]
+
 
         # Llamar a la función para generar las hojas con el mes seleccionado
         crear_hoja_mes_seleccionado(libro, f"DTO_{mes_seleccionado}", df_dto, mes_num)
@@ -453,6 +503,11 @@ def procesar_archivos():
         # Llamar a la función para crear la hoja de comparativa de año
         crear_comparativa_ano_dto(libro, df_dto)
         crear_comparativa_ano_pcl(libro, df_pcl)
+        
+        # Llamar a la función para crear las tablas de HOJA MES
+        tabla_hojames(libro, df_dto_mes, 'DTO', mes_num)
+        tabla_hojames(libro, df_pcl_mes, 'PCL', mes_num)
+
 
         output = BytesIO()
         libro.save(output)
