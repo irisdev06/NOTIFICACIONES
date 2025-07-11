@@ -98,6 +98,7 @@ def graficas_barras_tabla_mes_belisario_utmdl(df, nombre_hoja, mes):
     return grafico_path
 
 # ------------------------------------------------------------------------------- HOJA: TABLA MES -------------------------------------------------------------
+#graficas_barras_tabla_mes
 def graficas_barras_tabla_mes(df, colores, nombre_hoja):
     conteo = df.groupby(['MES', 'NOTIFICADOR']).size().unstack(fill_value=0)
     conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())
