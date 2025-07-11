@@ -18,9 +18,8 @@ meses_en_espanol = {
 }
 
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------- GRÁFICOS  -------------------------------------------------------------------------
+# ---------------------------------------------------------------------- COMPARATIVAS POR AÑO - HOJA: COMPARATIVA AÑO DTO/PCL  --------------------------------------
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# --------------------------------------------------------- COMPARATIVAS POR AÑO - HOJA: COMPARATIVA AÑO DTO/PCL ---------------------------------------------------
 def graficas_barras_tabla_mes_comparativa(df, nombre_hoja):
     # Filtrar solo los datos de BELISARIO397 y GESTAR INNOVACION
     df_comparativa = df[df['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
@@ -63,8 +62,70 @@ def graficapastel_comparativa_ano(df, nombre_hoja):
     plt.tight_layout()
     plt.savefig(grafico_path, transparent=True, bbox_inches="tight")
     return grafico_path
+# ---------------------------------------------------------------------- TABLAS  --------------------------------------
 
-# --------------------------------------------------------------- HOJA MES PCL/DTO_MES ----------------------------------------------------------------------------- #
+def tabla_comparativa_por_mes(df, hoja):
+    # Filtrar datos
+    df_comparativa = df[df['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
+
+    # Agrupar y pivotear
+    conteo = df_comparativa.groupby(['MES', 'NOTIFICADOR']).size().unstack(fill_value=0)
+    conteo.index = conteo.index.map(lambda m: meses_en_espanol[m].capitalize())
+
+    # Insertar tabla desde A1
+    for r_idx, fila in enumerate(dataframe_to_rows(conteo, index=True, header=True), start=1):
+        for c_idx, valor in enumerate(fila, start=1):
+            celda = hoja.cell(row=r_idx, column=c_idx, value=valor)
+            celda.alignment = Alignment(horizontal="center")
+
+            # Negrita en encabezado
+            if r_idx == 1:
+                celda.font = Font(bold=True)
+
+
+# ---------------------------------------------------------------------- Hojas  --------------------------------------
+
+def crear_comparativa_ano_dto(libro, df_dto):
+    if "COMPARATIVA AÑO DTO" in libro.sheetnames:
+        del libro["COMPARATIVA AÑO DTO"]
+    hoja = libro.create_sheet("COMPARATIVA AÑO DTO")
+
+    df_comparativa = df_dto[df_dto['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
+
+    # 👉 Primero la tabla
+    tabla_comparativa_por_mes(df_comparativa, hoja)
+
+    # Luego los gráficos (en posiciones fijas que no pisen la tabla)
+    grafico_barras_comparativa_path = graficas_barras_tabla_mes_comparativa(df_comparativa, "COMPARATIVA AÑO DTO")
+    hoja.add_image(Image(grafico_barras_comparativa_path), 'I4')
+
+    grafico_pastel_comparativa_path = graficapastel_comparativa_ano(df_comparativa, "COMPARATIVA AÑO DTO")
+    hoja.add_image(Image(grafico_pastel_comparativa_path), 'I4')
+
+# Hoja "COMPARATIVA AÑO PCL"
+def crear_comparativa_ano_pcl(libro, df_pcl):
+    if "COMPARATIVA AÑO PCL" in libro.sheetnames:
+        del libro["COMPARATIVA AÑO PCL"]
+    hoja = libro.create_sheet("COMPARATIVA AÑO PCL")
+
+    df_comparativa = df_pcl[df_pcl['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
+
+    # 👉 Primero la tabla
+    tabla_comparativa_por_mes(df_comparativa, hoja)
+
+    # Luego los gráficos en otra parte de la hoja
+    grafico_barras_comparativa_path = graficas_barras_tabla_mes_comparativa(df_comparativa, "COMPARATIVA AÑO PCL")
+    hoja.add_image(Image(grafico_barras_comparativa_path), 'I4')
+
+    grafico_pastel_comparativa_path = graficapastel_comparativa_ano(df_comparativa, "COMPARATIVA AÑO PCL")
+    hoja.add_image(Image(grafico_pastel_comparativa_path), 'I4')
+
+
+
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------  HOJA MES PCL/DTO_MES   ---------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def graficas_barras_hojames(df, nombre_hoja, mes):
     # Filtrar solo por el mes seleccionado (sin limitar por notificador)
     df_filtrado = df[df['MES'] == mes]
@@ -172,7 +233,9 @@ def crear_hoja_mes_seleccionado(libro, nombre_hoja, df, mes):
     hoja.add_image(img_pastel, 'E35')
 
 
-# ------------------------------------------------------------------------------- HOJA: TABLA MES -------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------  HOJA: TABLA MES  ---------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 def _mes_a_nombre(m):
     if isinstance(m, str):
         return m.capitalize()
@@ -232,44 +295,6 @@ def graficas_pastel_tabla_mes(df, nombre_hoja):
                                     bbox_inches="tight"); plt.close(fig)
     return path
 
-# ------------------------------------------------------------------------------- HOJAS -------------------------------------------------------------
-# Hoja "COMPARATIVA AÑO"
-def crear_comparativa_ano_dto(libro, df_dto):
-    # Crear la hoja "COMPARATIVA AÑO DTO"
-    if "COMPARATIVA AÑO DTO" in libro.sheetnames:
-        del libro["COMPARATIVA AÑO DTO"]
-    hoja = libro.create_sheet("COMPARATIVA AÑO DTO")
-
-    # Filtrar solo los datos de BELISARIO397 y GESTAR INNOVACION
-    df_comparativa = df_dto[df_dto['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
-
-    # Generar el gráfico de barras comparativo
-    grafico_barras_comparativa_path = graficas_barras_tabla_mes_comparativa(df_comparativa, "COMPARATIVA AÑO DTO")
-    img_comparativa_barras = Image(grafico_barras_comparativa_path)
-    hoja.add_image(img_comparativa_barras, 'E5')
-
-    # Generar gráfico de pastel comparativo
-    grafico_pastel_comparativa_path = graficapastel_comparativa_ano(df_comparativa, "COMPARATIVA AÑO DTO")
-    img_comparativa_pastel = Image(grafico_pastel_comparativa_path)
-    hoja.add_image(img_comparativa_pastel, 'E20')
-# Hoja "COMPARATIVA AÑO PCL"
-def crear_comparativa_ano_pcl(libro, df_pcl):
-    if "COMPARATIVA AÑO PCL" in libro.sheetnames:
-        del libro["COMPARATIVA AÑO PCL"]
-    hoja = libro.create_sheet("COMPARATIVA AÑO PCL")
-
-    # Filtrar solo los datos de BELISARIO397 y GESTAR INNOVACION
-    df_comparativa = df_pcl[df_pcl['NOTIFICADOR'].isin(['BELISARIO 397', 'GESTAR INNOVACION'])]
-
-    # Generar el gráfico de barras comparativo
-    grafico_barras_comparativa_path = graficas_barras_tabla_mes_comparativa(df_comparativa, "COMPARATIVA AÑO PCL")
-    img_comparativa_barras = Image(grafico_barras_comparativa_path)
-    hoja.add_image(img_comparativa_barras, 'E5')
-
-    # Generar gráfico de pastel comparativo
-    grafico_pastel_comparativa_path = graficapastel_comparativa_ano(df_comparativa, "COMPARATIVA AÑO DTO")
-    img_comparativa_pastel = Image(grafico_pastel_comparativa_path)
-    hoja.add_image(img_comparativa_pastel, 'E20')
 
 # ------------------------------------------------------------------------------- GENERAR TABLAS PARA DTO Y PCL: TABLA MES -------------------------------------------------------------
 def generar_tablas_dto_y_pcl(libro, df_dto, df_pcl):
@@ -336,7 +361,11 @@ def generar_tablas_dto_y_pcl(libro, df_dto, df_pcl):
     crear_hoja("PCL TABLA MES", df_pcl)
 
 
-# ------------------------------------------------------------------------------- FUNCIONES DE SUBIDA Y DESCARGA -------------------------------------------------------------
+
+# -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------  FUNCIONES DE SUBIDA Y DESCARGA  ---------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 def descargar_archivo(output, nombre="archivo_procesado.xlsx"):
     st.download_button(
         label="📥 Descargar archivo",  
