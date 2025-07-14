@@ -137,18 +137,12 @@ def crear_comparativa_ano_pcl(libro, df_pcl):
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # ---------------------------------------------------------------------  HOJA MES PCL/DTO_MES   ---------------------------------------------------------------------
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# ---------------------- GRAFICOS ----------------------
+
 def graficas_barras_hojames(df, nombre_hoja, mes):
-    # Filtrar solo por el mes seleccionado (sin limitar por notificador)
     df_filtrado = df[df['MES'] == mes]
-
-    print(f"Datos filtrados para {mes}:\n{df_filtrado[['NOTIFICADOR', 'ESTADO_INFORME']].head()}")
-
-    # Agrupar por NOTIFICADOR y ESTADO_INFORME
     conteo = df_filtrado.groupby(['NOTIFICADOR', 'ESTADO_INFORME']).size().unstack(fill_value=0)
 
-    print("Tabla de conteo:\n", conteo)
-
-    # Crear gráfica de barras
     fig, ax = plt.subplots(figsize=(14, 8))
     conteo.plot(kind='bar', ax=ax, color=colores[:len(conteo.columns)])
     ax.set_xlabel('Notificador')
@@ -167,6 +161,7 @@ def graficas_barras_hojames(df, nombre_hoja, mes):
     grafico_path = f"{nombre_hoja}_grafico_barras_hojames_{mes}.png"
     plt.tight_layout()
     plt.savefig(grafico_path, transparent=True, bbox_inches="tight")
+    plt.close(fig)
     return grafico_path
 
 def graficas_pastel_hoja_mes(df, nombre_hoja, mes):
@@ -174,7 +169,6 @@ def graficas_pastel_hoja_mes(df, nombre_hoja, mes):
         df['MES'] = df['FECHA_VISADO'].dt.month
 
     df_mes = df[df['MES'] == mes]
-
     conteo = (
         df_mes
         .groupby(['NOTIFICADOR', 'ESTADO_INFORME'])
@@ -183,21 +177,18 @@ def graficas_pastel_hoja_mes(df, nombre_hoja, mes):
     )
 
     conteo['ETIQUETA'] = conteo['NOTIFICADOR'] + " – " + conteo['ESTADO_INFORME']
-
     fig, ax = plt.subplots(figsize=(10, 8))
     cmap = plt.cm.get_cmap('tab20', len(conteo))
 
-    wedges, texts, autotexts = ax.pie(
+    wedges, _, _ = ax.pie(
         conteo['CUENTA'],
-        labels=None,  # 👈 Sin etiquetas en el gráfico
+        labels=None,
         autopct='%1.1f%%',
         startangle=140,
         colors=[cmap(i) for i in range(len(conteo))]
     )
 
     ax.axis('equal')
-
-    # 💡 Agregar leyenda al lado derecho
     ax.legend(
         wedges,
         conteo['ETIQUETA'],
@@ -211,68 +202,87 @@ def graficas_pastel_hoja_mes(df, nombre_hoja, mes):
     plt.tight_layout()
     plt.savefig(path, transparent=True, bbox_inches="tight")
     plt.close(fig)
-
     return path
-def crear_hoja_mes_seleccionado(libro, nombre_hoja, df, mes):
-    # Asegurarse de que la columna 'MES' esté presente en el DataFrame antes de filtrar
-    df['MES'] = df['FECHA_VISADO'].dt.month
-    
-    # Filtrar los datos por el mes seleccionado
-    df_mes = df[df['MES'] == mes]
-    
-    # Crear la hoja en el libro
+# ---------------------- HOJA SOLO DATOS ----------------------
+
+def crear_hoja_datos_mes(libro, df_mes, tipo, mes):
+    mes_nombre = meses_en_espanol.get(mes, f"Mes{mes}")
+    nombre_hoja = f"{tipo}_{mes_nombre}"
+
     if nombre_hoja in libro.sheetnames:
         del libro[nombre_hoja]
     hoja = libro.create_sheet(nombre_hoja)
 
-    # Escribir los datos filtrados
-    for i, row in enumerate(dataframe_to_rows(df_mes, index=False, header=True), start=1):
-        for j, value in enumerate(row, start=1):
-            hoja.cell(row=i, column=j, value=value)
-
-    # Generar gráficos de barras y pastel por mes
-    graficas_barras_tabla_mes_path = graficas_barras_hojames(df, nombre_hoja, mes)
-    img_barras_belisario_utmdl = Image(graficas_barras_tabla_mes_path)
-    hoja.add_image(img_barras_belisario_utmdl, 'E5')
-
-    # Generar gráfica de pastel para BELISARIO y UTMDL
-    grafico_pastel_path = graficas_pastel_hoja_mes(df, nombre_hoja, mes)
-
-    img_pastel = Image(grafico_pastel_path)
-    hoja.add_image(img_pastel, 'E35')
-
-# -------------------------------------------------------------------------------- TABLAS  -----------------------------------------------------------------------------------
-def tabla_hojames(libro, df_mes, tipo, mes, pos_barras='H5', pos_pastel='H35'):
-    nombre_hoja = f"{tipo}_{mes}_tabla"
-    nombre_hoja = f"{tipo}_{mes}_tabla"
-    if 'MES' not in df_mes.columns:
-        df_mes['MES'] = df_mes['FECHA_VISADO'].dt.month
-    if nombre_hoja in libro.sheetnames:
-        del libro[nombre_hoja]
-    hoja = libro.create_sheet(nombre_hoja)
-
-    # 👉 Vuelca el DataFrame (cabeceras incluidas)
     for r, fila in enumerate(dataframe_to_rows(df_mes, index=False, header=True), start=1):
         for c, valor in enumerate(fila, start=1):
             hoja.cell(row=r, column=c, value=valor)
 
-    # 👉 Bar chart
+    return nombre_hoja
+
+# ---------------------- HOJA CON GRAFICOS + TABLA ----------------------
+def resumen_notificador_estado(df, mes):
+    df_mes = df[df['MES'] == mes]
+    resumen = (
+        df_mes
+        .groupby(['NOTIFICADOR', 'ESTADO_INFORME'])
+        .size()
+        .reset_index(name='TOTAL')  
+        .sort_values(by=['NOTIFICADOR', 'ESTADO_INFORME'])
+    )
+    return resumen
+
+
+def tabla_hojames(libro, df_mes, tipo, mes, pos_tabla='A1', pos_barras='H5', pos_pastel='H35'):
+    mes_nombre = meses_en_espanol.get(mes, f"Mes{mes}")
+    nombre_hoja = f"{tipo}_{mes_nombre}_tabla_graficos"
+
+    if 'MES' not in df_mes.columns:
+        df_mes['MES'] = df_mes['FECHA_VISADO'].dt.month
+
+    if nombre_hoja in libro.sheetnames:
+        del libro[nombre_hoja]
+    hoja = libro.create_sheet(nombre_hoja)
+
+    # 🧮 Crear resumen de datos
+    resumen = resumen_notificador_estado(df_mes, mes)
+
+    # 💾 Volcar tabla resumida con estilos
+    rows = list(dataframe_to_rows(resumen, index=False, header=True))
+
+    # 🎨 Definir estilo
+    borde = Border(
+        left=Side(style='thin', color='000000'),
+        right=Side(style='thin', color='000000'),
+        top=Side(style='thin', color='000000'),
+        bottom=Side(style='thin', color='000000')
+    )
+    fill_gris = PatternFill("solid", fgColor="D9D9D9")
+    font_bold = Font(bold=True)
+
+    for r_idx, fila in enumerate(rows, start=1):
+        for c_idx, valor in enumerate(fila, start=1):
+            celda = hoja.cell(row=r_idx, column=c_idx, value=valor)
+            celda.border = borde
+            if r_idx == 1:
+                celda.fill = fill_gris
+                celda.font = font_bold
+
+    # 📊 Agregar gráficos
     barra_path = graficas_barras_hojames(df_mes, nombre_hoja, mes)
     hoja.add_image(Image(barra_path), pos_barras)
 
-    # 👉 Pie chart
     pastel_path = graficas_pastel_hoja_mes(df_mes, nombre_hoja, mes)
     hoja.add_image(Image(pastel_path), pos_pastel)
 
     return nombre_hoja
 
-def crear_hojas_dto_pcl_tabla(libro, df_total, mes):
 
-    # Asegura columna MES 👇🏽
+# ---------------------- CREA AMBAS HOJAS DTO/PCL ----------------------
+
+def crear_hojas_dto_pcl_tabla(libro, df_total, mes):
     if 'MES' not in df_total.columns:
         df_total['MES'] = df_total['FECHA_VISADO'].dt.month
 
-    # Split según tu columna de procedencia ✂️
     if 'HOJA_ORIGEN' not in df_total.columns:
         raise ValueError("Falta la columna HOJA_ORIGEN (debe valer 'DTO' o 'PCL').")
 
@@ -283,13 +293,13 @@ def crear_hojas_dto_pcl_tabla(libro, df_total, mes):
 
     for tipo, df_mes in filtros.items():
         if df_mes.empty:
-            print(f"⚠️  Nada para {tipo} en el mes {mes}, se salta la hoja.")
+            print(f"⚠️ Nada para {tipo} en el mes {mes}, se salta la hoja.")
             continue
-        _tabla_y_charts_en_hoja(libro, df_mes, tipo, mes)
 
-    print("✅ Hojas creadas / actualizadas al 100 % 🚀")
+        crear_hoja_datos_mes(libro, df_mes, tipo, mes)   # 📄 Datos con nombre bonito
+        tabla_hojames(libro, df_mes, tipo, mes)          # 📊 Tabla y gráficos
 
-
+    print("✅ Hojas DTO/PCL del mes creadas: datos + gráficos 🎉")
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # ---------------------------------------------------------------------  HOJA: TABLA MES  ---------------------------------------------------------------------
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -493,9 +503,12 @@ def procesar_archivos():
         df_pcl_mes = df_pcl[df_pcl['FECHA_VISADO'].dt.month == mes_num]
 
 
-        # Llamar a la función para generar las hojas con el mes seleccionado
-        crear_hoja_mes_seleccionado(libro, f"DTO_{mes_seleccionado}", df_dto, mes_num)
-        crear_hoja_mes_seleccionado(libro, f"PCL_{mes_seleccionado}", df_pcl, mes_num)
+        # Llamar a la función para generar las hojas con el mes seleccionado    
+        crear_hoja_datos_mes(libro, df_dto, "DTO", mes_num)
+        tabla_hojames(libro, df_dto, "DTO", mes_num)
+        crear_hoja_datos_mes(libro, df_pcl, "PCL", mes_num)
+        tabla_hojames(libro, df_pcl, "PCL", mes_num)
+
 
         # Llamar a la función para generar las tablas de DTO y PCL
         generar_tablas_dto_y_pcl(libro, df_dto, df_pcl)
