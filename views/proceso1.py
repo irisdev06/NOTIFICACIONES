@@ -205,19 +205,27 @@ def graficas_pastel_hoja_mes(df, nombre_hoja, mes):
     return path
 # ---------------------- HOJA SOLO DATOS ----------------------
 
-def crear_hoja_datos_mes(libro, df_mes, tipo, mes):
+def crear_hoja_datos_mes(libro, df, tipo, mes):
     mes_nombre = meses_en_espanol.get(mes, f"Mes{mes}")
     nombre_hoja = f"{tipo}_{mes_nombre}"
+
+    # Filtrar por mes de FECHA_VISADO
+    df_filtrado = df[df['FECHA_VISADO'].dt.month == mes].copy()
+
+    if df_filtrado.empty:
+        print(f"⚠️ No hay datos para {nombre_hoja}, no se crea hoja.")
+        return None
 
     if nombre_hoja in libro.sheetnames:
         del libro[nombre_hoja]
     hoja = libro.create_sheet(nombre_hoja)
 
-    for r, fila in enumerate(dataframe_to_rows(df_mes, index=False, header=True), start=1):
+    for r, fila in enumerate(dataframe_to_rows(df_filtrado, index=False, header=True), start=1):
         for c, valor in enumerate(fila, start=1):
             hoja.cell(row=r, column=c, value=valor)
 
     return nombre_hoja
+
 
 # ---------------------- HOJA CON GRAFICOS + TABLA ----------------------
 def resumen_notificador_estado(df, mes):
@@ -296,10 +304,14 @@ def crear_hojas_dto_pcl_tabla(libro, df_total, mes):
             print(f"⚠️ Nada para {tipo} en el mes {mes}, se salta la hoja.")
             continue
 
-        crear_hoja_datos_mes(libro, df_mes, tipo, mes)   # 📄 Datos con nombre bonito
-        tabla_hojames(libro, df_mes, tipo, mes)          # 📊 Tabla y gráficos
+        crear_hoja_datos_mes(libro, df_mes, tipo, mes)   
+        tabla_hojames(libro, df_mes, tipo, mes)          
 
     print("✅ Hojas DTO/PCL del mes creadas: datos + gráficos 🎉")
+
+
+
+
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # ---------------------------------------------------------------------  HOJA: TABLA MES  ---------------------------------------------------------------------
 # -------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -363,11 +375,21 @@ def graficas_pastel_tabla_mes(df, nombre_hoja):
     return path
 
 def grafica_pastel_tabla_mes_porproveedor(df, nombre_hoja):
-    proveedores = df['NOTIFICADOR'].dropna().unique()
+    # Limpiar nombres de notificador (espacios raros, nulos, etc.)
+    df = df.copy()
+    df['NOTIFICADOR'] = df['NOTIFICADOR'].astype(str).str.strip()
+
+    # Obtener notificadores únicos (sin excluir los que tengan 0 en ESTADO_INFORME)
+    proveedores = df['NOTIFICADOR'].unique()
     rutas = []
 
     for proveedor in proveedores:
         df_prov = df[df['NOTIFICADOR'] == proveedor]
+        
+        # ⚠️ Aseguramos que la columna existe y no esté toda vacía
+        if 'ESTADO_INFORME' not in df_prov.columns or df_prov['ESTADO_INFORME'].dropna().empty:
+            continue
+
         conteo = df_prov['ESTADO_INFORME'].value_counts()
 
         if conteo.empty:
@@ -387,7 +409,9 @@ def grafica_pastel_tabla_mes_porproveedor(df, nombre_hoja):
         ax.legend(labels=conteo.index, title='Estado Informe',
                   loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=10)
 
-        filename = f"{nombre_hoja}_pastel_{proveedor.replace(' ', '_').replace('/', '-')}.png"
+        # Limpiar el nombre para el archivo
+        safe_name = proveedor.strip().replace(' ', '_').replace('/', '-')
+        filename = f"{nombre_hoja}_pastel_{safe_name}.png"
         plt.tight_layout()
         plt.savefig(filename, transparent=True, bbox_inches="tight")
         plt.close(fig)
@@ -458,8 +482,15 @@ def generar_tablas_dto_y_pcl(libro, df_dto, df_pcl):
         grafico_pastel_path = graficas_pastel_tabla_mes(df, nombre_hoja)
         hoja.add_image(Image(grafico_pastel_path), 'E20')
 
-        grafico_pastel_proveedor_path = grafica_pastel_tabla_mes_porproveedor(df, nombre_hoja)
-        hoja.add_image(Image(grafico_pastel_proveedor_path[0]), 'E35')
+        grafico_pastel_proveedor_paths = grafica_pastel_tabla_mes_porproveedor(df, nombre_hoja)
+
+        fila = 35  # Empezamos a insertar desde esta fila
+        for path in grafico_pastel_proveedor_paths:
+            try:
+                hoja.add_image(Image(path), f'E{fila}')
+                fila += 20  # Ajusta esto según el tamaño de las imágenes
+            except Exception as e:
+                print(f"Error al insertar {path}: {e}")
 
     crear_hoja("DTO TABLA MES", df_dto)
     crear_hoja("PCL TABLA MES", df_pcl)
