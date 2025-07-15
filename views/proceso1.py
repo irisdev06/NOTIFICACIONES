@@ -362,6 +362,40 @@ def graficas_pastel_tabla_mes(df, nombre_hoja):
                                     bbox_inches="tight"); plt.close(fig)
     return path
 
+def grafica_pastel_tabla_mes_porproveedor(df, nombre_hoja):
+    proveedores = df['NOTIFICADOR'].dropna().unique()
+    rutas = []
+
+    for proveedor in proveedores:
+        df_prov = df[df['NOTIFICADOR'] == proveedor]
+        conteo = df_prov['ESTADO_INFORME'].value_counts()
+
+        if conteo.empty:
+            continue  # Nada que graficar
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        cmap = plt.cm.get_cmap('Pastel2', len(conteo))
+        ax.pie(
+            conteo,
+            labels=None,
+            autopct='%1.1f%%',
+            startangle=90,
+            colors=[cmap(i) for i in range(len(conteo))]
+        )
+
+        ax.set_title(f"{proveedor}", fontsize=12)
+        ax.legend(labels=conteo.index, title='Estado Informe',
+                  loc='center left', bbox_to_anchor=(1.05, 0.5), fontsize=10)
+
+        filename = f"{nombre_hoja}_pastel_{proveedor.replace(' ', '_').replace('/', '-')}.png"
+        plt.tight_layout()
+        plt.savefig(filename, transparent=True, bbox_inches="tight")
+        plt.close(fig)
+
+        rutas.append(filename)
+
+    return rutas
+
 
 # ------------------------------------------------------------------------------- GENERAR TABLAS PARA DTO Y PCL: TABLA MES -------------------------------------------------------------
 def generar_tablas_dto_y_pcl(libro, df_dto, df_pcl):
@@ -423,6 +457,9 @@ def generar_tablas_dto_y_pcl(libro, df_dto, df_pcl):
 
         grafico_pastel_path = graficas_pastel_tabla_mes(df, nombre_hoja)
         hoja.add_image(Image(grafico_pastel_path), 'E20')
+
+        grafico_pastel_proveedor_path = grafica_pastel_tabla_mes_porproveedor(df, nombre_hoja)
+        hoja.add_image(Image(grafico_pastel_proveedor_path[0]), 'E35')
 
     crear_hoja("DTO TABLA MES", df_dto)
     crear_hoja("PCL TABLA MES", df_pcl)
