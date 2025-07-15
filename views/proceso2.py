@@ -91,51 +91,76 @@ def generar_tablas_estado_informe(archivo, tipo):
     df_base = cargar_archivo(archivo, tipo)
 
     if df_base is not None:
-        if "ESTADO_INFORME" in df_base.columns and "NOTIFICADOR" in df_base.columns:
-            conteo = df_base.groupby(['ESTADO_INFORME', 'NOTIFICADOR']).size().unstack(fill_value=0)
-            conteo['TOTAL GENERAL'] = conteo.sum(axis=1)
-            total_general_sum = conteo['TOTAL GENERAL'].sum()
-            conteo['TOTAL %'] = (conteo['TOTAL GENERAL'] / total_general_sum) * 100
-            conteo['TOTAL %'] = conteo['TOTAL %'].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else '')
+        # ‑‑‑ Agrupar por ESTADO_INFORME y NOTIFICADOR
+        if {"ESTADO_INFORME", "NOTIFICADOR"}.issubset(df_base.columns):
+            conteo = (
+                df_base.groupby(["ESTADO_INFORME", "NOTIFICADOR"])
+                .size()
+                .unstack(fill_value=0)
+            )
+            # Sólo TOTAL GENERAL 😎
+            conteo["TOTAL GENERAL"] = conteo.sum(axis=1)
 
+            # ‑‑‑ Preparar libro de Excel
             libro = Workbook()
             hoja_procesada = libro.active
             hoja_procesada.title = "Tabla Procesada"
 
+            # Encabezados
             hoja_procesada.cell(row=1, column=1, value="ESTADO INFORME")
-            for col_idx, notificador in enumerate(conteo.columns[:-2], start=2):
+            for col_idx, notificador in enumerate(conteo.columns[:-1], start=2):
                 hoja_procesada.cell(row=1, column=col_idx, value=notificador)
-            hoja_procesada.cell(row=1, column=len(conteo.columns)-1, value="TOTAL GENERAL")
-            hoja_procesada.cell(row=1, column=len(conteo.columns), value="TOTAL %")
+            hoja_procesada.cell(
+                row=1, column=len(conteo.columns), value="TOTAL GENERAL"
+            )
 
+            # Datos
             row_start = 2
             for estado, valores in conteo.iterrows():
                 hoja_procesada.cell(row=row_start, column=1, value=estado)
-                for col_idx, notificador in enumerate(conteo.columns[:-2], start=2):
-                    hoja_procesada.cell(row=row_start, column=col_idx, value=valores.get(notificador, 0))
-                hoja_procesada.cell(row=row_start, column=len(valores)-2, value=valores.get('TOTAL GENERAL', 0))
-                hoja_procesada.cell(row=row_start, column=len(valores)-1, value=valores.get('TOTAL %', ''))
+                for col_idx, notificador in enumerate(conteo.columns[:-1], start=2):
+                    hoja_procesada.cell(
+                        row=row_start,
+                        column=col_idx,
+                        value=valores.get(notificador, 0),
+                    )
+                hoja_procesada.cell(
+                    row=row_start,
+                    column=len(conteo.columns),
+                    value=valores.get("TOTAL GENERAL", 0),
+                )
                 row_start += 1
 
+            # Fila de totales
             hoja_procesada.cell(row=row_start, column=1, value="TOTAL GENERAL")
-            for col_idx in range(2, len(conteo.columns)-1):
-                hoja_procesada.cell(row=row_start, column=col_idx, value=conteo.iloc[:, col_idx - 1].sum())
-            hoja_procesada.cell(row=row_start, column=len(conteo.columns)-1, value='')
+            for col_idx in range(2, len(conteo.columns) + 1):
+                hoja_procesada.cell(
+                    row=row_start,
+                    column=col_idx,
+                    value=conteo.iloc[:, col_idx - 2].sum(),
+                )
 
+            # ‑‑‑ Hoja BASE
             hoja_base = libro.create_sheet("BASE")
-            for r_idx, row in enumerate(dataframe_to_rows(df_base, index=False, header=True), 1):
+            for r_idx, row in enumerate(
+                dataframe_to_rows(df_base, index=False, header=True), 1
+            ):
                 for c_idx, value in enumerate(row, 1):
                     hoja_base.cell(row=r_idx, column=c_idx, value=value)
 
-            # Estilos
+            # ‑‑‑ Estilos (se quedan igual)
             borde = Border(
                 left=Side(style="thin", color="000000"),
                 right=Side(style="thin", color="000000"),
                 top=Side(style="thin", color="000000"),
-                bottom=Side(style="thin", color="000000")
+                bottom=Side(style="thin", color="000000"),
             )
-            fondo_gris = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
-            fondo_gris_total = PatternFill(start_color="A6A6A6", end_color="A6A6A6", fill_type="solid")
+            fondo_gris = PatternFill(
+                start_color="D9D9D9", end_color="D9D9D9", fill_type="solid"
+            )
+            fondo_gris_total = PatternFill(
+                start_color="A6A6A6", end_color="A6A6A6", fill_type="solid"
+            )
 
             for cell in hoja_procesada["1:1"]:
                 cell.border = borde
@@ -143,34 +168,39 @@ def generar_tablas_estado_informe(archivo, tipo):
             for cell in hoja_procesada[row_start]:
                 cell.fill = fondo_gris_total
                 cell.border = borde
-            for row in hoja_procesada.iter_rows(min_row=2, max_row=row_start, min_col=1, max_col=len(conteo.columns)):
+            for row in hoja_procesada.iter_rows(
+                min_row=2,
+                max_row=row_start,
+                min_col=1,
+                max_col=len(conteo.columns),
+            ):
                 for cell in row:
                     cell.border = borde
 
-            # Ajuste ancho
+            # Ajustar anchos
             for col in hoja_procesada.columns:
-                max_length = 0
-                column = col[0].column_letter
-                for cell in col:
-                    try:
-                        if cell.value:
-                            max_length = max(max_length, len(str(cell.value)))
-                    except:
-                        pass
-                hoja_procesada.column_dimensions[column].width = max_length + 2
+                max_length = max(
+                    (len(str(cell.value)) for cell in col if cell.value), default=0
+                )
+                hoja_procesada.column_dimensions[col[0].column_letter].width = (
+                    max_length + 2
+                )
 
-            # AGREGAR LA GRÁFICA
+            # Agregar gráfica de barras (tu función sigue igual)
             libro = grafica_barras(df_base, libro)
 
-            # GUARDAR EL ARCHIVO
+            # Entregar archivo en memoria
             output = BytesIO()
             libro.save(output)
             output.seek(0)
             return output
 
         else:
-            st.error("El archivo no contiene las columnas necesarias: 'ESTADO_INFORME' y 'NOTIFICADOR'.")
+            st.error(
+                "El archivo no contiene las columnas necesarias: 'ESTADO_INFORME' y 'NOTIFICADOR'."
+            )
             return None
+
 
 
 # ------------------------ FUNCIONES DE SUBIDA Y DESCARGA -------------------------------
