@@ -338,7 +338,18 @@ def graficas_barras_tabla_mes(df, nombre_hoja):
 
     # 📊 Plot
     fig, ax = plt.subplots(figsize=(12, 6))
-    tabla.plot(kind='bar', ax=ax, color=colores)
+    barras = tabla.plot(kind='bar', ax=ax, color=colores)
+
+    # Etiquetas de datos
+    for p in ax.patches:
+        altura = p.get_height()
+        if altura > 0:  # Evitar etiquetas en barras vacías
+            ax.text(
+                p.get_x() + p.get_width() / 2,  # posición x centrada
+                altura,                        # posición y arriba de la barra
+                int(altura),                   # valor entero
+                ha='center', va='bottom', fontsize=8
+            )
 
     ax.set_xlabel("Mes")
     ax.set_ylabel("Cantidad")
@@ -350,6 +361,7 @@ def graficas_barras_tabla_mes(df, nombre_hoja):
     plt.savefig(path, transparent=True, bbox_inches="tight")
     plt.close(fig)
     return path
+
 
 
 def graficas_pastel_tabla_mes(df, nombre_hoja):
